@@ -1,0 +1,897 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Animated Battleship hunting patterns for when the smallest ship left is 2, 3, 4 or 5 cells, with the proof that each pattern can't miss.">
+<meta name="theme-color" content="#E3E8EB" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0A1117" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231B3247'/%3E%3Ccircle cx='9' cy='9' r='3.2' fill='%23F3F1EA'/%3E%3Ccircle cx='23' cy='9' r='3.2' fill='%23F3F1EA'/%3E%3Ccircle cx='16' cy='16' r='3.6' fill='%23DA4230'/%3E%3Ccircle cx='9' cy='23' r='3.2' fill='%23F3F1EA'/%3E%3Ccircle cx='23' cy='23' r='3.2' fill='%23F3F1EA'/%3E%3C/svg%3E">
+<style>
+:root { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
+<title>Battleship Shot Patterns</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Stencil+Display:wght@700;800&family=JetBrains+Mono:wght@400;600&family=Public+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: plotting table. Fleet selector strip, then a square peg board beside a ship dossier, field notes below. */
+:root {
+  --paper: #E3E8EB;
+  --paper-2: #D5DCE1;
+  --ink: #0F1C28;
+  --ink-2: #4A5967;
+  --rule: #B7C2CB;
+  --signal-ui: #8F6100;
+  /* the board is a physical object: deep navy plastic, white and red pegs, grey hulls */
+  --board: #1B3247;
+  --board-deep: #12253A;
+  --grid: #26425B;
+  --hole: #0B1825;
+  --label: #8EA6BB;
+  --peg: #F3F1EA;
+  --peg-shade: #C2BCAC;
+  --red: #DA4230;
+  --red-deep: #8C1D13;
+  --hull: #A9B4BE;
+  --hull-deep: #5B6874;
+  --signal: #E8B23A;
+  --f-display: "Big Shoulders Stencil Display", "Arial Narrow", Impact, sans-serif;
+  --f-body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0A1117; --paper-2: #121C26; --ink: #E1E7EC; --ink-2: #93A2B0; --rule: #24333F; --signal-ui: #E8B23A;
+    --board: #162B3E; --board-deep: #0E2032;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0A1117; --paper-2: #121C26; --ink: #E1E7EC; --ink-2: #93A2B0; --rule: #24333F; --signal-ui: #E8B23A;
+  --board: #162B3E; --board-deep: #0E2032;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap {
+  max-width: 1120px;
+  margin-inline: auto;
+  padding-inline: clamp(16px, 4vw, 40px);
+  padding-block: clamp(24px, 5vw, 48px) 72px;
+  display: grid;
+  gap: clamp(20px, 3vw, 32px);
+}
+button { font: inherit; }
+button:focus-visible, .track:focus-visible { outline: 2px solid var(--signal-ui); outline-offset: 3px; }
+
+/* masthead */
+.mast { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 12px 40px; align-items: end; }
+.eyebrow { font-family: var(--f-mono); font-size: .75rem; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2); margin: 0 0 10px; }
+h1 {
+  font-family: var(--f-display); font-weight: 800; text-transform: uppercase;
+  font-size: clamp(2.7rem, 8vw, 5rem); line-height: .88; letter-spacing: .005em;
+  margin: 0; text-wrap: balance;
+}
+.dek { margin: 0; color: var(--ink-2); font-size: 1.05rem; max-width: 52ch; text-wrap: pretty; }
+
+/* fleet selector */
+.fleet { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.ship-btn {
+  position: relative; overflow: hidden;
+  display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; align-items: center;
+  padding: 10px; border: 1px solid var(--rule); border-radius: 10px;
+  background: transparent; color: var(--ink); text-align: left; cursor: pointer;
+  transition: background-color .2s, border-color .2s;
+}
+.ship-btn:hover { background: var(--paper-2); }
+.ship-btn[aria-pressed="true"] { border-color: var(--ink); background: var(--paper-2); }
+.ship-btn canvas { display: block; width: 64px; height: 64px; border-radius: 6px; }
+.sb-text { display: grid; gap: 2px; min-width: 0; }
+.sb-k { font-family: var(--f-display); font-weight: 800; font-size: 1.45rem; line-height: 1; text-transform: uppercase; }
+.sb-name { font-size: .85rem; color: var(--ink-2); line-height: 1.3; }
+.sb-shots { font-family: var(--f-mono); font-size: .75rem; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.sb-prog { position: absolute; left: 0; bottom: 0; height: 3px; width: 0; background: var(--signal-ui); }
+
+/* stage */
+.stage { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: clamp(20px, 3vw, 40px); align-items: start; }
+.board-col { display: grid; gap: 14px; min-width: 0; }
+.board {
+  margin: 0; width: 100%; max-width: 100%; aspect-ratio: 1;
+  border-radius: 14px; overflow: hidden; background: var(--board);
+  box-shadow: 0 0 0 1px var(--rule), 0 24px 48px -28px rgba(4, 14, 24, .6);
+}
+.board canvas { display: block; width: 100%; height: 100%; }
+
+.transport { display: flex; align-items: flex-start; gap: 8px; }
+.tbtn {
+  flex: none; width: 40px; height: 40px; display: grid; place-items: center;
+  border: 1px solid var(--rule); border-radius: 8px; background: var(--paper-2); color: var(--ink); cursor: pointer;
+}
+.tbtn:hover { border-color: var(--ink-2); }
+.tbtn svg { width: 16px; height: 16px; display: block; }
+.track { flex: 1; min-width: 0; display: flex; gap: 4px; padding: 8px 2px 0 6px; cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; border-radius: 4px; }
+.seg { flex: 1; display: grid; gap: 8px; min-width: 0; }
+.seg .bar { height: 6px; border-radius: 3px; background: var(--rule); overflow: hidden; }
+.seg .bar i { display: block; height: 100%; width: 0; background: var(--signal-ui); }
+.seg span { font-family: var(--f-mono); font-size: .7rem; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); white-space: nowrap; }
+.seg.on span { color: var(--ink); font-weight: 600; }
+.keys { font-family: var(--f-mono); font-size: .7rem; color: var(--ink-2); margin: 0; }
+
+/* dossier */
+.dossier { display: grid; gap: 20px; min-width: 0; }
+.d-head { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 18px; align-items: end; }
+.d-k { font-family: var(--f-display); font-weight: 800; font-size: clamp(5.2rem, 10vw, 7.5rem); line-height: .78; grid-row: span 2; font-variant-numeric: tabular-nums; }
+.d-name { font-weight: 600; font-size: 1.3rem; line-height: 1.2; text-wrap: balance; }
+.d-ship { color: var(--ink-2); display: flex; align-items: center; gap: 10px; font-family: var(--f-mono); font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; }
+.d-ship svg { display: block; flex: none; }
+.specs { margin: 0; display: grid; }
+.specs > div { display: grid; grid-template-columns: minmax(0, 10em) minmax(0, 1fr); gap: 12px; padding-block: 10px; border-top: 1px solid var(--rule); align-items: baseline; }
+.specs dt { font-family: var(--f-mono); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+.specs dd { margin: 0; font-variant-numeric: tabular-nums; }
+.specs b { font-family: var(--f-mono); font-weight: 600; }
+.now { border-top: 2px solid var(--ink); padding-top: 14px; display: grid; gap: 8px; }
+.now-tag { font-family: var(--f-mono); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--signal-ui); font-weight: 600; }
+.now p { margin: 0; font-size: 1.12rem; line-height: 1.5; min-height: 4.5em; text-wrap: pretty; }
+
+/* notes */
+.notes { border-top: 1px solid var(--rule); padding-top: clamp(24px, 4vw, 40px); display: grid; gap: 28px; }
+.notes h2 { font-family: var(--f-display); font-weight: 800; text-transform: uppercase; font-size: clamp(1.9rem, 4vw, 2.6rem); line-height: 1; margin: 0; }
+.note-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px 36px; }
+.note h3 { font-size: 1.02rem; margin: 0 0 6px; font-weight: 600; }
+.note p { margin: 0; color: var(--ink-2); max-width: 60ch; }
+.why { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 20px 28px; align-items: center; padding: clamp(16px, 3vw, 24px); background: var(--paper-2); border-radius: 12px; }
+.why h3 { margin: 0 0 6px; font-size: 1.02rem; font-weight: 600; }
+.why p { margin: 0; color: var(--ink-2); max-width: 60ch; }
+.why p + p { margin-top: 8px; }
+.modgrid { display: grid; grid-template-columns: repeat(6, 30px); gap: 3px; font-family: var(--f-mono); font-size: .85rem; }
+.modgrid span { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 4px; color: var(--ink-2); background: var(--paper); }
+.modgrid span.on { background: var(--ink); color: var(--paper); font-weight: 600; }
+
+@media (max-width: 860px) {
+  .stage { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .mast { grid-template-columns: minmax(0, 1fr); }
+  .ship-btn { grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 8px; }
+  .ship-btn canvas { width: 100%; height: auto; aspect-ratio: 1; }
+  .sb-name { display: none; }
+  .sb-k { font-size: 1.15rem; }
+}
+@media (max-width: 560px) {
+  .why { grid-template-columns: minmax(0, 1fr); }
+}
+@media (hover: none) { .keys { display: none; } }
+@media (prefers-reduced-motion: reduce) { .ship-btn { transition: none; } }
+</style>
+</head>
+<body>
+
+<main class="wrap">
+  <header class="mast">
+    <div>
+      <p class="eyebrow">Hunting drill &middot; 10 &times; 10 grid</p>
+      <h1>Battleship Shot Patterns</h1>
+    </div>
+    <p class="dek">Space your shots by the length of the smallest ship your opponent still has afloat. Each pattern covers every square that ship could occupy with the fewest shots. Pick a ship size to watch why it works.</p>
+  </header>
+
+  <nav class="fleet" id="fleet" aria-label="Smallest ship still afloat"></nav>
+
+  <section class="stage">
+    <div class="board-col">
+      <figure class="board" id="board">
+        <canvas id="cv" role="img" aria-label="Battleship board"></canvas>
+      </figure>
+      <div class="transport">
+        <button class="tbtn" id="play" type="button" aria-label="Pause animation"></button>
+        <button class="tbtn" id="restart" type="button" aria-label="Replay this ship">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 8a5.5 5.5 0 1 0 1.7-4"/><path d="M2.5 1.8v3h3"/></svg>
+        </button>
+        <div class="track" id="track" role="slider" tabindex="0" aria-label="Animation position" aria-valuemin="0" aria-valuemax="17.4" aria-valuenow="0"></div>
+      </div>
+      <p class="keys">Space: pause &middot; &larr; &rarr;: change ship &middot; 2&ndash;5: jump to a ship</p>
+    </div>
+
+    <aside class="dossier" aria-label="Current pattern">
+      <div>
+        <p class="eyebrow">Smallest ship afloat</p>
+        <div class="d-head">
+          <span class="d-k" id="dK">2</span>
+          <span class="d-name" id="dName">Destroyer</span>
+          <span class="d-ship" id="dShip"></span>
+        </div>
+      </div>
+      <dl class="specs">
+        <div><dt>Pattern</dt><dd id="dPattern"></dd></div>
+        <div><dt>Gap between shots</dt><dd id="dGap"></dd></div>
+        <div><dt>Shots plotted</dt><dd><b id="dCount">0</b> of <b id="dTotal">50</b></dd></div>
+      </dl>
+      <div class="now">
+        <span class="now-tag" id="nowTag">Plot</span>
+        <p id="nowText"></p>
+      </div>
+    </aside>
+  </section>
+
+  <section class="notes">
+    <h2>In a real game</h2>
+    <div class="note-grid">
+      <div class="note">
+        <h3>Go by the smallest ship left</h3>
+        <p>The spacing comes from the shortest ship your opponent still has. While the destroyer is afloat, play the checkerboard. Once it sinks, widen to every third diagonal, and keep widening as the smaller ships go down. If a 2-cell and a 5-cell ship are both left, the 2 decides.</p>
+      </div>
+      <div class="note">
+        <h3>Hunt, then target</h3>
+        <p>The pattern finds ships. It doesn't sink them. After a hit, leave the pattern and fire at the four squares around it. Once a second hit shows the direction, keep firing along that line until the ship sinks, then go back to the pattern.</p>
+      </div>
+      <div class="note">
+        <h3>Fire the middle first</h3>
+        <p>Inside the pattern, start near the center and work outward. More ship positions pass through the middle of the board than along its edges, so central shots find ships sooner on average.</p>
+      </div>
+    </div>
+    <div class="why">
+      <div class="modgrid" id="modgrid" aria-hidden="true"></div>
+      <div>
+        <h3>Why diagonals never miss</h3>
+        <p>Label every square with (row + column) mod 3, as in the corner of the board shown here. Any 3 squares in a line, across or down, contain one 0, one 1 and one 2. Fire on every square labeled 1 and a 3-cell ship can't avoid all of them.</p>
+        <p>The same holds for any length: with mod 4, any 4 squares in a line hold each label once. Pick the label with the fewest squares and that's the pattern.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const N = 10;
+  const ROWS = 'ABCDEFGHIJ';
+  // scene clock, in seconds
+  const T = { intro: 1.6, plot: 6.4, gap: 8.6, slide: 14.4, end: 17.4 };
+  const PHASES = [
+    { key: 'plot', label: 'Plot', from: 0, to: T.plot },
+    { key: 'gap', label: 'Measure', from: T.plot, to: T.gap },
+    { key: 'slide', label: 'Slide', from: T.gap, to: T.slide },
+    { key: 'tally', label: 'Tally', from: T.slide, to: T.end },
+  ];
+  const INFO = {
+    2: { name: 'Destroyer', pattern: 'Checkerboard: every other square' },
+    3: { name: 'Cruiser or Submarine', pattern: 'Every 3rd diagonal' },
+    4: { name: 'Battleship', pattern: 'Every 4th diagonal' },
+    5: { name: 'Carrier', pattern: 'Every 5th diagonal' },
+  };
+  const ORD = { 3: 'third', 4: 'fourth', 5: 'fifth' };
+  const ROW_GAP = 4, ROW_SLIDE = 7, COL_SLIDE = 6;
+  const SLIDE_H = 2.6, SLIDE_X = 0.6, SLIDE_V = T.slide - T.gap - SLIDE_H - SLIDE_X;
+  const LINE_DUR = 0.55, POP = 0.34;
+  const MONO = '"JetBrains Mono", ui-monospace, Menlo, monospace';
+  const STENCIL = '"Big Shoulders Stencil Display", "Arial Narrow", Impact, sans-serif';
+
+  const clamp01 = v => (v < 0 ? 0 : v > 1 ? 1 : v);
+  const lerp = (a, b, p) => a + (b - a) * p;
+  const easeOut = p => 1 - Math.pow(1 - p, 3);
+  const easeIO = p => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2);
+  const easeBack = p => { const c1 = 1.9, c3 = c1 + 1; return 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2); };
+
+  // dwell at each integer position, then glide to the next
+  function stepper(u, dur, n) {
+    if (n <= 1) return { pos: 0, i: 0, f: u };
+    const GL = dur / (0.7 * n + n - 1), DW = 0.7 * GL, cyc = DW + GL;
+    const i = Math.max(0, Math.min(n - 1, Math.floor(u / cyc)));
+    const f = u - i * cyc;
+    if (i === n - 1 || f < DW) return { pos: i, i, f };
+    return { pos: i + easeIO((f - DW) / GL), i, f };
+  }
+
+  function buildScene(k) {
+    // residue of (row + col) mod k with the fewest squares
+    let res = 0, best = Infinity;
+    for (let m = 0; m < k; m++) {
+      let n = 0;
+      for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if ((r + c) % k === m) n++;
+      if (n < best) { best = n; res = m; }
+    }
+    const sweep = (T.plot - T.intro) - LINE_DUR - POP - 0.15;
+    const diags = [], shots = [], on = new Set();
+    for (let S = res; S <= 2 * (N - 1); S += k) {
+      const cells = [];
+      for (let r = Math.max(0, S - (N - 1)); r <= Math.min(N - 1, S); r++) cells.push([r, S - r]);
+      const t0 = T.intro + (S / (2 * (N - 1))) * sweep;
+      diags.push({ S, cells, t0 });
+      cells.forEach(([r, c], i) => {
+        shots.push({ r, c, S, at: t0 + LINE_DUR * (cells.length > 1 ? i / (cells.length - 1) : 0) });
+        on.add(r * N + c);
+      });
+    }
+    shots.sort((a, b) => a.at - b.at);
+    // two neighbouring shots in the measuring row, nearest the middle
+    let gapStart = 0, bestD = Infinity;
+    for (let c = 0; c + k < N; c++) {
+      if (!on.has(ROW_GAP * N + c)) continue;
+      const d = Math.abs(c + k / 2 - 4.5);
+      if (d < bestD) { bestD = d; gapStart = c; }
+    }
+    const n = N - k + 1;
+    const GL = SLIDE_H / (0.7 * n + n - 1);
+    const poster = T.gap + 2 * (1.7 * GL) + 0.62 * GL;
+    return { k, res, diags, shots, on, total: shots.length, gapStart, poster, ...INFO[k] };
+  }
+  const scenes = [2, 3, 4, 5].map(buildScene);
+
+  /* ---------- tokens ---------- */
+  const C = {};
+  function readTokens() {
+    const cs = getComputedStyle(document.documentElement);
+    ['board', 'board-deep', 'grid', 'hole', 'label', 'peg', 'peg-shade', 'red', 'red-deep', 'hull', 'hull-deep', 'signal']
+      .forEach(k => { C[k] = cs.getPropertyValue('--' + k).trim() || '#000000'; });
+  }
+  function rgba(hex, a) {
+    let h = hex.replace('#', '');
+    if (h.length === 3) h = h.split('').map(x => x + x).join('');
+    const n = parseInt(h, 16);
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+  }
+
+  /* ---------- DOM ---------- */
+  const $ = id => document.getElementById(id);
+  const fig = $('board'), cv = $('cv'), ctx = cv.getContext('2d');
+  const fleet = $('fleet'), track = $('track'), playBtn = $('play');
+  const dK = $('dK'), dName = $('dName'), dShip = $('dShip'), dPattern = $('dPattern'), dGap = $('dGap'),
+        dCount = $('dCount'), dTotal = $('dTotal'), nowTag = $('nowTag'), nowText = $('nowText');
+
+  const ICON_PAUSE = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="3" y="2.5" width="3.4" height="11" rx="1"/><rect x="9.6" y="2.5" width="3.4" height="11" rx="1"/></svg>';
+  const ICON_PLAY = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L5.2 1.9A.8.8 0 0 0 4 2.6z"/></svg>';
+
+  function shipSVG(k) {
+    const u = 16, w = k * u, h = 14, H = 10, top = (h - H) / 2, bot = top + H, mid = h / 2;
+    const l = 1, r = w - 1, bow = H * 0.95;
+    const d = `M${l + H * 0.3} ${top}L${r - bow} ${top}Q${r - bow * 0.25} ${top} ${r} ${mid}Q${r - bow * 0.25} ${bot} ${r - bow} ${bot}L${l + H * 0.3} ${bot}Q${l} ${bot} ${l} ${mid + H * 0.2}L${l} ${mid - H * 0.2}Q${l} ${top} ${l + H * 0.3} ${top}Z`;
+    let holes = '';
+    for (let i = 0; i < k; i++) holes += `<circle cx="${(i + 0.5) * u}" cy="${mid}" r="1.8" fill="var(--paper)"/>`;
+    return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" aria-hidden="true"><path d="${d}" fill="currentColor"/>${holes}</svg>`;
+  }
+
+  const fleetBtns = [], minis = [], progs = [];
+  scenes.forEach((sc, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ship-btn';
+    b.setAttribute('aria-pressed', 'false');
+    b.setAttribute('aria-label', `${sc.k}-cell ship, ${sc.name}: ${sc.total} shots`);
+    b.innerHTML = `<canvas width="128" height="128" aria-hidden="true"></canvas>
+      <span class="sb-text"><span class="sb-k">${sc.k}-cell</span><span class="sb-name">${sc.name}</span><span class="sb-shots">${sc.total} shots</span></span>
+      <span class="sb-prog" aria-hidden="true"></span>`;
+    b.addEventListener('click', () => setScene(i, false));
+    fleet.appendChild(b);
+    fleetBtns.push(b);
+    minis.push(b.querySelector('canvas'));
+    progs.push(b.querySelector('.sb-prog'));
+  });
+
+  const segs = [], fills = [];
+  PHASES.forEach(p => {
+    const s = document.createElement('div');
+    s.className = 'seg';
+    s.innerHTML = `<div class="bar"><i></i></div><span>${p.label}</span>`;
+    track.appendChild(s);
+    segs.push(s);
+    fills.push(s.querySelector('i'));
+  });
+
+  // (row + col) mod 3 corner for the notes
+  const mg = $('modgrid');
+  for (let r = 0; r < 6; r++) for (let c = 0; c < 6; c++) {
+    const v = (r + c) % 3, s = document.createElement('span');
+    s.textContent = v;
+    if (v === 1) s.className = 'on';
+    mg.appendChild(s);
+  }
+
+  /* ---------- state ---------- */
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const hashMatch = location.hash.match(/^#ship-([2-5])$/);
+  const state = { scene: hashMatch ? +hashMatch[1] - 2 : 0, prev: null, t: 0, playing: !reduce };
+  if (reduce) state.t = scenes[state.scene].poster;
+  let dirty = true;
+
+  function setScene(i, auto) {
+    state.prev = state.scene;
+    state.scene = (i + scenes.length) % scenes.length;
+    state.t = state.playing || auto ? 0 : scenes[state.scene].poster;
+    dirty = true;
+  }
+  function setPlaying(p) {
+    state.playing = p;
+    playBtn.innerHTML = p ? ICON_PAUSE : ICON_PLAY;
+    playBtn.setAttribute('aria-label', p ? 'Pause animation' : 'Play animation');
+    dirty = true;
+  }
+
+  /* ---------- geometry ---------- */
+  function geom(W) {
+    const x0 = W * 0.085, B = W - x0 - W * 0.03, cell = B / N;
+    return { W, x0, y0: x0, B, cell, cx: c => x0 + (c + 0.5) * cell, cy: r => x0 + (r + 0.5) * cell };
+  }
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  /* ---------- drawing ---------- */
+  function drawBoard(g) {
+    ctx.fillStyle = C.board;
+    ctx.fillRect(0, 0, g.W, g.W);
+    const fs = Math.max(9, g.cell * 0.3);
+    ctx.font = `600 ${fs}px ${MONO}`;
+    ctx.fillStyle = C.label;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i < N; i++) {
+      ctx.fillText(String(i + 1), g.cx(i), g.y0 / 2 + 1);
+      ctx.fillText(ROWS[i], g.x0 / 2, g.cy(i));
+    }
+    roundRect(g.x0, g.y0, g.B, g.B, g.cell * 0.14);
+    ctx.fillStyle = C['board-deep'];
+    ctx.fill();
+    ctx.strokeStyle = C.grid;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 1; i < N; i++) {
+      const p = Math.round(g.x0 + i * g.cell) + 0.5;
+      ctx.moveTo(p, g.y0); ctx.lineTo(p, g.y0 + g.B);
+      ctx.moveTo(g.x0, p); ctx.lineTo(g.x0 + g.B, p);
+    }
+    ctx.stroke();
+    const hr = g.cell * 0.14;
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+      const x = g.cx(c), y = g.cy(r);
+      ctx.beginPath(); ctx.arc(x, y, hr, 0, Math.PI * 2);
+      ctx.fillStyle = C.hole; ctx.fill();
+      ctx.beginPath(); ctx.arc(x, y, hr, 0.1 * Math.PI, 0.9 * Math.PI);
+      ctx.strokeStyle = rgba(C.label, 0.22); ctx.lineWidth = 1; ctx.stroke();
+    }
+  }
+
+  function clipField(g) {
+    ctx.beginPath();
+    ctx.rect(g.x0, g.y0, g.B, g.B);
+    ctx.clip();
+  }
+
+  function drawGuides(g, sc, t) {
+    ctx.save();
+    clipField(g);
+    ctx.lineCap = 'round';
+    const settle = clamp01((t - T.plot) / 0.6);
+    for (const d of sc.diags) {
+      const p = clamp01((t - d.t0) / LINE_DUR);
+      if (p <= 0) continue;
+      const a = d.cells[0], b = d.cells[d.cells.length - 1];
+      const ext = g.cell * 0.5, ux = -Math.SQRT1_2, uy = Math.SQRT1_2;
+      const ax = g.cx(a[1]) - ux * ext, ay = g.cy(a[0]) - uy * ext;
+      const bx = g.cx(b[1]) + ux * ext, by = g.cy(b[0]) + uy * ext;
+      const e = easeOut(p), ex = lerp(ax, bx, e), ey = lerp(ay, by, e);
+      ctx.strokeStyle = rgba(C.signal, 0.55 - 0.37 * settle);
+      ctx.lineWidth = Math.max(1.5, g.cell * 0.06);
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ex, ey); ctx.stroke();
+      if (p < 1) {
+        const glow = ctx.createRadialGradient(ex, ey, 0, ex, ey, g.cell * 0.4);
+        glow.addColorStop(0, rgba(C.signal, 0.9));
+        glow.addColorStop(1, rgba(C.signal, 0));
+        ctx.fillStyle = glow;
+        ctx.beginPath(); ctx.arc(ex, ey, g.cell * 0.4, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawPeg(x, y, r, red) {
+    if (r < 0.3) return;
+    ctx.fillStyle = 'rgba(0,0,0,0.38)';
+    ctx.beginPath(); ctx.ellipse(x + r * 0.14, y + r * 0.24, r * 1.02, r * 0.96, 0, 0, Math.PI * 2); ctx.fill();
+    if (red) {
+      const halo = ctx.createRadialGradient(x, y, r * 0.5, x, y, r * 2.3);
+      halo.addColorStop(0, rgba(C.red, 0.5));
+      halo.addColorStop(1, rgba(C.red, 0));
+      ctx.fillStyle = halo;
+      ctx.beginPath(); ctx.arc(x, y, r * 2.3, 0, Math.PI * 2); ctx.fill();
+    }
+    const grd = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.1, x, y, r);
+    grd.addColorStop(0, red ? C.red : C.peg);
+    grd.addColorStop(1, red ? C['red-deep'] : C['peg-shade']);
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.beginPath(); ctx.ellipse(x - r * 0.3, y - r * 0.38, r * 0.3, r * 0.18, -0.5, 0, Math.PI * 2); ctx.fill();
+  }
+
+  function tallyBump(t, S) {
+    if (t < T.slide) return 1;
+    const p = (t - T.slide - 0.1) / 1.6 * 22 - 2;
+    return 1 + 0.22 * Math.max(0, 1 - Math.abs(S - p) / 2.2);
+  }
+
+  function drawPegs(g, sc, t, hits, onlyHits) {
+    for (const s of sc.shots) {
+      const isHit = hits.has(s.r * N + s.c);
+      if (isHit !== onlyHits) continue;
+      const d = t - s.at;
+      if (d < 0) continue;
+      const x = g.cx(s.c), y = g.cy(s.r);
+      if (!onlyHits && d < 0.65) {
+        const e = easeOut(d / 0.65);
+        ctx.strokeStyle = rgba(C.peg, 0.6 * (1 - e));
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(x, y, g.cell * (0.28 + 0.55 * e), 0, Math.PI * 2); ctx.stroke();
+      }
+      const k = (d >= POP ? 1 : Math.max(0, easeBack(d / POP))) * tallyBump(t, s.S);
+      drawPeg(x, y, g.cell * 0.27 * k, isHit);
+    }
+  }
+
+  function drawPegsOut(g, sc, t) {
+    const k = 1 - easeIO(clamp01(t / 0.45));
+    if (k <= 0) return;
+    for (const s of sc.shots) drawPeg(g.cx(s.c), g.cy(s.r), g.cell * 0.27 * k, false);
+  }
+
+  function hullPath(L, H) {
+    const l = -L / 2, r = L / 2, h = H / 2, bow = H * 0.95;
+    ctx.beginPath();
+    ctx.moveTo(l + h * 0.6, -h);
+    ctx.lineTo(r - bow, -h);
+    ctx.quadraticCurveTo(r - bow * 0.25, -h, r, 0);
+    ctx.quadraticCurveTo(r - bow * 0.25, h, r - bow, h);
+    ctx.lineTo(l + h * 0.6, h);
+    ctx.quadraticCurveTo(l, h, l, h * 0.4);
+    ctx.lineTo(l, -h * 0.4);
+    ctx.quadraticCurveTo(l, -h, l + h * 0.6, -h);
+    ctx.closePath();
+  }
+
+  function shipAt(sc, t) {
+    const k = sc.k, n = N - k + 1;
+    if (t < T.intro) {
+      const p = easeOut(clamp01(t / 0.9));
+      return { cx: lerp(-k / 2 - 0.6, N / 2, p), cy: 4.5, ang: 0, k, alpha: 1 - clamp01((t - 1.2) / 0.4), lift: 0 };
+    }
+    if (t < T.gap) return null;
+    const u = t - T.gap;
+    if (u < SLIDE_H) {
+      const s = stepper(u, SLIDE_H, n);
+      return { orient: 'h', pos: s.pos, i: s.i, f: s.f, cx: s.pos + k / 2, cy: ROW_SLIDE + 0.5, ang: 0, k, alpha: clamp01(u / 0.25), lift: 0 };
+    }
+    if (u < SLIDE_H + SLIDE_X) {
+      const p = easeIO((u - SLIDE_H) / SLIDE_X);
+      return {
+        cx: lerp(N - k / 2, COL_SLIDE + 0.5, p), cy: lerp(ROW_SLIDE + 0.5, k / 2, p),
+        ang: lerp(0, Math.PI / 2, p), k, alpha: 1, lift: Math.sin(Math.PI * p),
+      };
+    }
+    if (t >= T.slide + 0.35) return null;
+    const s = stepper(u - SLIDE_H - SLIDE_X, SLIDE_V, n);
+    return { orient: 'v', pos: s.pos, i: s.i, f: s.f, cx: COL_SLIDE + 0.5, cy: s.pos + k / 2, ang: Math.PI / 2, k, alpha: 1 - clamp01((t - T.slide) / 0.35), lift: 0 };
+  }
+
+  function hitSet(sc, ship, t) {
+    const hits = new Set();
+    if (!ship || !ship.orient || t >= T.slide) return hits;
+    for (let j = 0; j < N; j++) {
+      const m = j + 0.5;
+      if (m <= ship.pos || m >= ship.pos + sc.k) continue;
+      const id = ship.orient === 'h' ? ROW_SLIDE * N + j : j * N + COL_SLIDE;
+      if (sc.on.has(id)) hits.add(id);
+    }
+    return hits;
+  }
+
+  function drawShip(g, s) {
+    if (s.alpha <= 0) return;
+    const x = g.x0 + s.cx * g.cell, y = g.y0 + s.cy * g.cell;
+    const L = s.k * g.cell - g.cell * 0.16, H = g.cell * 0.62, sc = 1 + 0.07 * s.lift;
+    const off = g.cell * (0.07 + 0.28 * s.lift);
+    ctx.save();
+    clipField(g);
+    ctx.globalAlpha = s.alpha;
+    // shadow
+    ctx.save();
+    ctx.translate(x + off * 0.6, y + off);
+    ctx.rotate(s.ang); ctx.scale(sc, sc);
+    hullPath(L, H);
+    ctx.fillStyle = `rgba(0,0,0,${0.4 - 0.15 * s.lift})`;
+    ctx.fill();
+    ctx.restore();
+    // hull
+    ctx.translate(x, y);
+    ctx.rotate(s.ang); ctx.scale(sc, sc);
+    hullPath(L, H);
+    const grd = ctx.createLinearGradient(0, -H / 2, 0, H / 2);
+    grd.addColorStop(0, C.hull);
+    grd.addColorStop(1, C['hull-deep']);
+    ctx.fillStyle = grd;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    roundRect(-L / 2 + H * 0.3, -H * 0.17, L - H * 1.2, H * 0.34, H * 0.17);
+    ctx.fillStyle = rgba(C['hull-deep'], 0.55);
+    ctx.fill();
+    for (let i = 0; i < s.k; i++) {
+      ctx.beginPath(); ctx.arc((i - (s.k - 1) / 2) * g.cell, 0, g.cell * 0.1, 0, Math.PI * 2);
+      ctx.fillStyle = C.hole; ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawHitRing(g, sc, ship) {
+    if (!ship || !ship.orient || ship.f > 0.5) return;
+    for (let j = ship.i; j < ship.i + sc.k; j++) {
+      const r = ship.orient === 'h' ? ROW_SLIDE : j, c = ship.orient === 'h' ? j : COL_SLIDE;
+      if (!sc.on.has(r * N + c)) continue;
+      const e = easeOut(ship.f / 0.5);
+      ctx.strokeStyle = rgba(C.red, 0.9 * (1 - e));
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(g.cx(c), g.cy(r), g.cell * (0.32 + 0.5 * e), 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+
+  function drawIntro(g, sc, t) {
+    if (t >= T.intro) return;
+    const a = clamp01((t - 0.35) / 0.35) * (1 - clamp01((t - 1.2) / 0.4));
+    if (a <= 0) return;
+    const mx = g.x0 + g.B / 2, y = g.y0 + 5.55 * g.cell;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `800 ${g.cell * 0.72}px ${STENCIL}`;
+    ctx.fillStyle = rgba(C.peg, a);
+    ctx.fillText(sc.name.toUpperCase(), mx, y);
+    ctx.font = `600 ${Math.max(9, g.cell * 0.24)}px ${MONO}`;
+    ctx.fillStyle = rgba(C.signal, a);
+    ctx.fillText(`SMALLEST SHIP AFLOAT · ${sc.k} CELLS`, mx, y + g.cell * 0.62);
+  }
+
+  function drawGap(g, sc, t) {
+    if (t < T.plot || t >= T.gap) return;
+    const u = t - T.plot;
+    const a = clamp01(u / 0.3) * (1 - clamp01((t - (T.gap - 0.3)) / 0.3));
+    const top = g.y0 + ROW_GAP * g.cell, bot = top + g.cell;
+    // spotlight the measuring row
+    ctx.fillStyle = rgba(C['board-deep'], 0.62 * a);
+    ctx.fillRect(g.x0, g.y0, g.B, top - g.y0);
+    ctx.fillRect(g.x0, bot, g.B, g.y0 + g.B - bot);
+    const k = sc.k, xa = g.x0 + (sc.gapStart + 1) * g.cell, xb = g.x0 + (sc.gapStart + k) * g.cell;
+    // the empty run
+    ctx.fillStyle = rgba(C.signal, 0.16 * a);
+    ctx.fillRect(xa + 3, top + 3, xb - xa - 6, g.cell - 6);
+    ctx.save();
+    ctx.setLineDash([6, 5]);
+    ctx.lineDashOffset = -t * 26;
+    ctx.strokeStyle = rgba(C.signal, 0.95 * a);
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(xa + 3, top + 3, xb - xa - 6, g.cell - 6);
+    ctx.restore();
+    // bracket the two shots that bound it
+    [sc.gapStart, sc.gapStart + k].forEach(c => {
+      ctx.strokeStyle = rgba(C.signal, 0.9 * a);
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(g.cx(c), g.cy(ROW_GAP), g.cell * 0.4, 0, Math.PI * 2); ctx.stroke();
+    });
+    // dimension line
+    const p = easeOut(clamp01((u - 0.2) / 0.5)), dy = top - g.cell * 0.3, tk = g.cell * 0.12;
+    const mid = (xa + xb) / 2, half = (xb - xa) / 2 * p;
+    ctx.strokeStyle = rgba(C.signal, a);
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(mid - half, dy); ctx.lineTo(mid + half, dy);
+    if (p > 0.98) { ctx.moveTo(xa, dy - tk); ctx.lineTo(xa, dy + tk); ctx.moveTo(xb, dy - tk); ctx.lineTo(xb, dy + tk); }
+    ctx.stroke();
+    const fs = Math.max(10, g.cell * 0.27);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.font = `600 ${fs}px ${MONO}`;
+    ctx.fillStyle = rgba(C.signal, a * clamp01((u - 0.5) / 0.3));
+    ctx.fillText(`${k - 1}-CELL GAP`, mid, dy - fs * 0.6);
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = rgba(C.peg, a * clamp01((u - 1.0) / 0.3));
+    ctx.fillText(`${k}-CELL SHIP WON'T FIT`, mid, bot + g.cell * 0.22);
+  }
+
+  function drawTally(g, sc, t) {
+    if (t < T.slide + 0.2) return;
+    const a = clamp01((t - T.slide - 0.2) / 0.35) * (1 - clamp01((t - (T.end - 0.45)) / 0.4));
+    if (a <= 0) return;
+    const w = g.B * 0.66, h = g.B * 0.42, x = g.x0 + (g.B - w) / 2, y = g.y0 + (g.B - h) / 2;
+    roundRect(x, y, w, h, g.cell * 0.25);
+    ctx.fillStyle = rgba(C['board-deep'], 0.92 * a);
+    ctx.fill();
+    ctx.strokeStyle = rgba(C.signal, 0.7 * a);
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    const n = Math.round(sc.total * easeOut(clamp01((t - T.slide - 0.3) / 0.8)));
+    const mx = x + w / 2;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `800 ${g.cell * 1.9}px ${STENCIL}`;
+    ctx.fillStyle = rgba(C.peg, a);
+    ctx.fillText(String(n), mx, y + h * 0.4);
+    const fs = Math.max(9, g.cell * 0.26);
+    ctx.font = `600 ${fs}px ${MONO}`;
+    ctx.fillStyle = rgba(C.signal, a);
+    ctx.fillText(`SHOTS FIND ANY ${sc.k}-CELL SHIP`, mx, y + h * 0.74);
+    ctx.fillStyle = rgba(C.label, a);
+    ctx.fillText(`${100 - sc.total} OF 100 SQUARES CAN WAIT`, mx, y + h * 0.74 + fs * 1.6);
+  }
+
+  function render() {
+    const W = fig.clientWidth;
+    if (!W) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    const px = Math.round(W * dpr);
+    if (cv.width !== px || cv.height !== px) { cv.width = px; cv.height = px; }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const sc = scenes[state.scene], t = state.t, g = geom(W);
+    drawBoard(g);
+    if (state.prev !== null && t < 0.5) drawPegsOut(g, scenes[state.prev], t);
+    drawGuides(g, sc, t);
+    const ship = shipAt(sc, t);
+    const hits = hitSet(sc, ship, t);
+    drawPegs(g, sc, t, hits, false);
+    if (ship) drawShip(g, ship);
+    drawPegs(g, sc, t, hits, true);
+    drawHitRing(g, sc, ship);
+    drawIntro(g, sc, t);
+    drawGap(g, sc, t);
+    drawTally(g, sc, t);
+  }
+
+  function drawMini(cnv, sc, active) {
+    const W = cnv.clientWidth || 64;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5), px = Math.round(W * dpr);
+    if (cnv.width !== px) { cnv.width = px; cnv.height = px; }
+    const m = cnv.getContext('2d');
+    m.setTransform(dpr, 0, 0, dpr, 0, 0);
+    m.fillStyle = C['board-deep'];
+    m.fillRect(0, 0, W, W);
+    const pad = W * 0.06, cell = (W - pad * 2) / N;
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+      const on = sc.on.has(r * N + c);
+      m.beginPath();
+      m.arc(pad + (c + 0.5) * cell, pad + (r + 0.5) * cell, cell * (on ? 0.34 : 0.13), 0, Math.PI * 2);
+      m.fillStyle = on ? (active ? C.signal : C.peg) : C.hole;
+      m.fill();
+    }
+  }
+  function drawMinis() { minis.forEach((cnv, i) => drawMini(cnv, scenes[i], i === state.scene)); }
+
+  /* ---------- copy ---------- */
+  function captionFor(key, sc) {
+    const { k, total, name } = sc;
+    const sq = n => `${n} ${n === 1 ? 'square' : 'squares'}`;
+    switch (key) {
+      case 'plot': return k === 2
+        ? 'Fire on every other square, like one color of a checkerboard. In each row and column, shots sit 2 squares apart.'
+        : `Fire along every ${ORD[k]} diagonal. In each row and column, shots sit ${k} squares apart.`;
+      case 'gap': return `Between two neighboring shots there ${k - 1 === 1 ? 'is' : 'are'} only ${sq(k - 1)}. A ${k}-cell ship can't fit there without touching a shot.`;
+      case 'slide': return `Slide the ${name.toLowerCase()} anywhere, across or down. Wherever it sits, exactly one shot lands on it.`;
+      default: return `${total} shots are enough to find any ${k}-cell ship. The other ${100 - total} squares can wait until you get a hit.`;
+    }
+  }
+
+  /* ---------- UI sync ---------- */
+  let shownScene = -1, shownPhase = -1, shownCount = -1;
+  function phaseIndex(t) { for (let i = 0; i < PHASES.length; i++) if (t < PHASES[i].to) return i; return PHASES.length - 1; }
+
+  function syncUI() {
+    const sc = scenes[state.scene], t = state.t;
+    if (shownScene !== state.scene) {
+      shownScene = state.scene; shownPhase = -1; shownCount = -1;
+      dK.textContent = sc.k;
+      dName.textContent = sc.name;
+      dShip.innerHTML = shipSVG(sc.k) + `<span>${sc.k} cells</span>`;
+      dPattern.textContent = sc.pattern;
+      dGap.textContent = `${sc.k - 1} empty ${sc.k - 1 === 1 ? 'square' : 'squares'}`;
+      dTotal.textContent = sc.total;
+      cv.setAttribute('aria-label', `Battleship board showing the ${sc.total}-shot pattern for a ${sc.k}-cell ship: ${sc.pattern.toLowerCase()}.`);
+      fleetBtns.forEach((b, i) => b.setAttribute('aria-pressed', String(i === state.scene)));
+      drawMinis();
+    }
+    const pi = phaseIndex(t);
+    if (pi !== shownPhase) {
+      shownPhase = pi;
+      nowTag.textContent = PHASES[pi].label;
+      nowText.textContent = captionFor(PHASES[pi].key, sc);
+      segs.forEach((s, i) => s.classList.toggle('on', i === pi));
+    }
+    let count = 0;
+    for (const s of sc.shots) if (s.at <= t) count++;
+    if (count !== shownCount) { shownCount = count; dCount.textContent = count; }
+    PHASES.forEach((p, i) => { fills[i].style.width = (clamp01((t - p.from) / (p.to - p.from)) * 100).toFixed(2) + '%'; });
+    progs.forEach((el, i) => { el.style.width = i === state.scene ? (t / T.end * 100).toFixed(2) + '%' : '0%'; });
+    track.setAttribute('aria-valuenow', t.toFixed(1));
+    track.setAttribute('aria-valuetext', `${PHASES[pi].label}, ${t.toFixed(1)} of ${T.end} seconds`);
+  }
+
+  /* ---------- loop ---------- */
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.25, (now - last) / 1000);
+    last = now;
+    if (state.playing) {
+      state.t += dt;
+      if (state.t >= T.end) setScene(state.scene + 1, true);
+      dirty = true;
+    }
+    if (dirty) { dirty = false; render(); syncUI(); }
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------- controls ---------- */
+  playBtn.addEventListener('click', () => setPlaying(!state.playing));
+  $('restart').addEventListener('click', () => { state.prev = state.scene; state.t = 0; setPlaying(true); });
+
+  function seekFromX(clientX) {
+    const r = track.getBoundingClientRect();
+    const frac = clamp01((clientX - r.left) / r.width);
+    const i = Math.min(PHASES.length - 1, Math.floor(frac * PHASES.length));
+    const local = frac * PHASES.length - i, p = PHASES[i];
+    state.t = Math.min(T.end - 0.001, p.from + local * (p.to - p.from));
+    dirty = true;
+  }
+  let dragging = false;
+  track.addEventListener('pointerdown', e => { dragging = true; track.setPointerCapture(e.pointerId); seekFromX(e.clientX); });
+  track.addEventListener('pointermove', e => { if (dragging) seekFromX(e.clientX); });
+  const endDrag = () => { dragging = false; };
+  track.addEventListener('pointerup', endDrag);
+  track.addEventListener('pointercancel', endDrag);
+  track.addEventListener('keydown', e => {
+    const step = { ArrowRight: 0.5, ArrowUp: 0.5, ArrowLeft: -0.5, ArrowDown: -0.5 }[e.key];
+    if (step !== undefined) { state.t = Math.max(0, Math.min(T.end - 0.001, state.t + step)); dirty = true; e.preventDefault(); }
+    else if (e.key === 'Home') { state.t = 0; dirty = true; e.preventDefault(); }
+    else if (e.key === 'End') { state.t = T.end - 0.001; dirty = true; e.preventDefault(); }
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const tag = e.target && e.target.tagName;
+    if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'TEXTAREA' || e.target === track) return;
+    if (e.key === ' ' || e.key === 'k') { setPlaying(!state.playing); e.preventDefault(); }
+    else if (e.key === 'ArrowRight') { setScene(state.scene + 1, false); e.preventDefault(); }
+    else if (e.key === 'ArrowLeft') { setScene(state.scene - 1, false); e.preventDefault(); }
+    else if (/^[2-5]$/.test(e.key)) setScene(+e.key - 2, false);
+  });
+
+  /* ---------- theme, size, fonts ---------- */
+  function refresh() { readTokens(); drawMinis(); dirty = true; }
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', refresh);
+  new MutationObserver(refresh).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class', 'style'] });
+  new ResizeObserver(() => { drawMinis(); dirty = true; }).observe(fig);
+  if (document.fonts) {
+    Promise.all([
+      document.fonts.load(`800 40px "Big Shoulders Stencil Display"`),
+      document.fonts.load(`600 14px "JetBrains Mono"`),
+    ]).catch(() => {}).then(() => { dirty = true; });
+  }
+
+  readTokens();
+  setPlaying(state.playing);
+  syncUI();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
